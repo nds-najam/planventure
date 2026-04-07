@@ -16,13 +16,27 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Basic model example
-class ExampleModel(db.Model):
+class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    trips = db.relationship('Trip', backref='user', lazy=True)
 
     def __repr__(self):
-        return f'<ExampleModel {self.name}>'
+        return f'<User {self.username}>'
+
+class Trip(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    destination = db.Column(db.String(150), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    itinerary = db.Column(db.Text, nullable=True)
+
+    def __repr__(self):
+        return f'<Trip {self.destination} for user_id={self.user_id}>'
 
 @app.route('/')
 def home():
