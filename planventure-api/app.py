@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 import os
 from dotenv import load_dotenv
 from password_utils import hash_password, verify_password
@@ -131,6 +131,80 @@ def login():
         "username": user.username,
         "tokens": tokens
     }), 200
+
+@app.route('/trips', methods=['GET'])
+@jwt_required()
+def get_trips():
+    """Get all trips for the authenticated user."""
+    try:
+        current_user = get_jwt_identity()
+        user_id = current_user['id']
+        
+        trips = Trip.query.filter_by(user_id=user_id).all()
+        
+        trips_data = []
+        for trip in trips:
+            trips_data.append({
+                'id': trip.id,
+                'destination': trip.destination,
+                'start_date': trip.start_date.isoformat(),
+                'end_date': trip.end_date.isoformat(),
+                'latitude': trip.latitude,
+                'longitude': trip.longitude,
+                'itinerary': trip.itinerary
+            })
+        
+        return jsonify({
+            'trips': trips_data,
+            'count': len(trips_data)
+        }), 200
+    except Exception as e:
+        return jsonify({"msg": f"Error retrieving trips: {str(e)}"}), 500
+
+@app.route('/trips', methods=['POST'])
+@jwt_required()
+def create_trip():
+    """Create a new trip for the authenticated user."""
+    try:
+        current_user = get_jwt_identity()
+        user_id = current_user['id']
+        
+        data = request.get_json()
+        
+        if not data or not data.get('destination') or not data.get('start_date') or not data.get('end_date'):
+            return jsonify({"msg": "Missing required fields: destination, start_date, end_date"}), 400
+        
+        from datetime import datetime
+        
+        trip = Trip(
+            user_id=user_id,
+            destination=data['destination'],
+            start_date=datetime.fromisoformat(data['start_date']),
+            end_date=datetime.fromisoformat(data['end_date']),
+            latitude=data.get('latitude'),
+            longitude=data.get('longitude'),
+            itinerary=data.get('itinerary')
+        )
+        
+        db.session.add(trip)
+        db.session.commit()
+        
+        return jsonify({
+            'msg': 'Trip created successfully',
+            'trip_id': trip.id,
+            'trip': {
+                'id': trip.id,
+                'destination': trip.destination,
+                'start_date': trip.start_date.isoformat(),
+                'end_date': trip.end_date.isoformat(),
+                'latitude': trip.latitude,
+                'longitude': trip.longitude,
+                'itinerary': trip.itinerary
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": f"Error creating trip: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
